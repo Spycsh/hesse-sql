@@ -1,0 +1,2 @@
+SELECT id FROM 3 TO 5 IN [87, 165] HAVING id > 4 or id < 2 and id > 10;
+CALL 'minibatch' SELECT id FROM 5 TO 7 IN [234, 578] HAVING (H=3 AND K=9);

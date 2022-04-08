@@ -1,0 +1,1 @@
+SELECT id FROM 3 TO 5 IN [87, 165] HAVING id > 4 or id < 2 and id > 10;
