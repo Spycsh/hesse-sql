@@ -10,7 +10,7 @@ input hesse sql statement:
 
 ast tree:
 
-![parse Tree](doc/parseTree.png)
+![parse Tree](doc/parseTree.jpg)
 
 generated plan:
 
