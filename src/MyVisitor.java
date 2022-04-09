@@ -1,9 +1,7 @@
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 public class MyVisitor extends gBaseVisitor<Object>{
-    HashMap<String, String> map = new HashMap<>();
+    Map<String, Object> map = new LinkedHashMap<>();
 
     @Override public Object visitStat(gParser.StatContext ctx) {
         if(ctx.END() != null && ctx.END().toString().equals(";")){
@@ -22,10 +20,10 @@ public class MyVisitor extends gBaseVisitor<Object>{
                         break;
                     case "TO":
                         map.put("to", identifier);
+                        break;
                     default:
                         System.out.println("unidentified operation: "+op);
                 }
-                storeEntry(ctx.OP().toString(), identifier);
             }else if(ctx.target().region() != null){
                 // TODO may need more logics to handle the brackets
                 String startT = ctx.target().region().CHAR(0).toString();
@@ -35,11 +33,13 @@ public class MyVisitor extends gBaseVisitor<Object>{
             }else if(ctx.target().condition() != null){
                 String op = ctx.OP().toString();
                 if(op.equals("HAVING")){
-                    dfsComputeRegion(ctx.target().condition());
+                    List<Interval> regions = dfsComputeRegion(ctx.target().condition());
 
+                    map.put("conditions", regions.toString());
                 }
             }
         }
+
         return visitChildren(ctx);
     }
 
@@ -55,20 +55,20 @@ public class MyVisitor extends gBaseVisitor<Object>{
             return getIntervals(condition.conditionStat());
         }
 
-        List<Interval> leftInterval = dfsComputeRegion(condition.condition());
+        List<Interval> leftIntervals = dfsComputeRegion(condition.condition());
         String conjunction = condition.CONJUNCTION().toString();
-        List<Interval> rightInterval = getIntervals(condition.conditionStat());
-        return calculateIntervals(leftInterval, conjunction, rightInterval);
+        List<Interval> rightIntervals = getIntervals(condition.conditionStat());
+        return calculateIntervals(leftIntervals, conjunction, rightIntervals);
     }
 
-    private List<Interval> calculateIntervals(List<Interval> leftInterval, String conjunction, List<Interval> rightInterval) {
+    private List<Interval> calculateIntervals(List<Interval> leftIntervals, String conjunction, List<Interval> rightIntervals) {
         List<Interval> res = new ArrayList<>();
-        switch (conjunction){
+        switch (conjunction.trim()){
             case "and":
-                res = intersect(leftInterval, rightInterval);
+                res = intersect(leftIntervals, rightIntervals);
                 break;
             case "or":
-                res = union(leftInterval, rightInterval);
+                res = union(leftIntervals, rightIntervals);
                 break;
             default:
                 System.out.println("unidentified conjunction: "+conjunction);
@@ -76,41 +76,35 @@ public class MyVisitor extends gBaseVisitor<Object>{
         return res;
     }
 
-    private List<Interval> union(List<Interval> leftInterval, List<Interval> rightInterval) {
-        List<Interval> list = new ArrayList<>();
-        for(Interval e1:leftInterval){
-            for(Interval e2:rightInterval){
-                list.addAll(union(e1, e2));
+    private List<Interval> union(List<Interval> leftIntervals, List<Interval> rightIntervals) {
+        List<Interval> unionList = new ArrayList<>();
+
+        leftIntervals.addAll(rightIntervals);
+        leftIntervals.sort(Comparator.comparingInt(o -> Integer.parseInt(o.leftBound)));
+
+        for(Interval interval: leftIntervals){
+            int L = Integer.parseInt(interval.leftBound);
+            int R = Integer.parseInt(interval.rightBound);
+
+            if(unionList.size() == 0 || Integer.parseInt(unionList.get(unionList.size() - 1).rightBound) < L){
+                unionList.add(new Interval(String.valueOf(L), String.valueOf(R)));
+            }else{
+                unionList.get(unionList.size() - 1).rightBound = String.valueOf(Math.max(
+                        Integer.parseInt(unionList.get(unionList.size() - 1).rightBound), R));
             }
         }
-        return list;
+
+        return unionList;
     }
 
-    private List<Interval> union(Interval e1, Interval e2){
-        List<Interval> intervals = new ArrayList<>();
-        int rightBound2 = Integer.parseInt(e2.rightBound);
-        int leftBound1 = Integer.parseInt(e1.leftBound);
-        int rightBound1 = Integer.parseInt(e1.rightBound);
-        int leftBound2 = Integer.parseInt(e2.leftBound);
-
-        if(rightBound2 > leftBound1 && rightBound1 < leftBound2){
-            Interval interval = new Interval(String.valueOf(Math.min(leftBound1, leftBound2)), String.valueOf(Math.max(rightBound1, rightBound2)));
-            intervals.add(interval);
-        }else{
-            intervals.add(e1);
-            intervals.add(e2);
-        }
-        return intervals;
-
-    }
-
-    private List<Interval> intersect(List<Interval> leftInterval, List<Interval> rightInterval) {
+    private List<Interval> intersect(List<Interval> leftIntervals, List<Interval> rightIntervals) {
         List<Interval> list = new ArrayList<>();
-        for(Interval e1:leftInterval){
-            for(Interval e2:rightInterval){
+
+        for(Interval e1 : leftIntervals){
+            for(Interval e2 : rightIntervals){
                 Interval intersectedInterval = intersect(e1, e2);
                 if(intersectedInterval != null)
-                    list.add(intersect(e1, e2));
+                    list.add(intersectedInterval);
             }
         }
         return list;
@@ -122,7 +116,8 @@ public class MyVisitor extends gBaseVisitor<Object>{
         int rightBound1 = Integer.parseInt(e1.rightBound);
         int leftBound2 = Integer.parseInt(e2.leftBound);
 
-        if(rightBound2 > leftBound1 && rightBound1 < leftBound2){
+        // check whether two intervals intersect
+        if(rightBound2 > leftBound1 && rightBound1 > leftBound2){
             return new Interval(String.valueOf(Math.max(leftBound1, leftBound2)), String.valueOf(Math.min(rightBound1, rightBound2)));
         }else{
             return null;
@@ -166,6 +161,14 @@ class Interval{
     public Interval(String leftBound, String rightBound) {
         this.leftBound = leftBound;
         this.rightBound = rightBound;
+    }
+
+    @Override
+    public String toString() {
+        return "Interval{" +
+                "leftBound='" + leftBound + '\'' +
+                ", rightBound='" + rightBound + '\'' +
+                '}';
     }
 }
 
